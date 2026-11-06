@@ -1,0 +1,27 @@
+
+# Compiled files
+*.o
+*.out
+*.exe
+a.out
+
+# Build directories
+build/
+cmake-build-*/
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+venv/
+.venv/
+
+# VS Code
+.vscode/
+
+# macOS
+.DS_Store
+
+# Temporary files
+*.tmp
