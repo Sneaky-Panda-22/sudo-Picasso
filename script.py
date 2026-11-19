@@ -29,7 +29,7 @@ def convert_to_ppm(input_path, output_path, max_width=1200, max_height=850):
 
 
 # Put your image location and output filename here
-input_path = "/Users/parthtandon/Downloads/mediterranean-landscape-with-mountains-ocean-sunset/f86020cb-62f2-4ef0-a3c5-a030b666b8ea.jpg"
-output_path = "output.ppm"
+input_path = "mountain.jpg"
+output_path = "output_mountain.ppm"
 
 convert_to_ppm(input_path, output_path)

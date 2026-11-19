@@ -5,7 +5,7 @@
 #include <fstream>
 #include <climits>
 
-// Colour palette for terminal output
+// Colour palette
 #define RESET       "\033[0m"
 #define BOLD        "\033[1m"
 #define ERROR_COLOR "\033[38;5;124m"  // Crimson red for errors
@@ -416,10 +416,13 @@ std::ostream& operator<<(std::ostream& dout, const NumpyArray& obj) {
 
     return dout;
 }
+
+// Get the number of rows
 int NumpyArray::getRows() const {
     return rows;
 }
 
+// Get the number of columns
 int NumpyArray::getCols() const {
     return cols;
 }
@@ -539,7 +542,7 @@ int Image::getHeight() const {
     return height;
 }
 
-
+// Class to handle image input/output operations
 class ImageIO{
 public:
     //We don't need to create an ImageIO object just to load an image. Thus we make it static.
@@ -547,6 +550,8 @@ public:
     static Image loadPPM(std::string);
     static void display(const Image&);
 };
+
+// Load a PPM image from a file
 Image ImageIO::loadPPM(std::string filename) {
 
     std::ifstream file(filename);
@@ -570,7 +575,7 @@ Image ImageIO::loadPPM(std::string filename) {
     file >> maxValue;
 
     if (!file || width <= 0 || height <= 0 ||
-        maxValue <= 0 || maxValue > 65535) {
+        maxValue <= 0 || maxValue > INT_MAX) {
         throw std::runtime_error("Invalid PPM header");
     }
 
@@ -594,6 +599,7 @@ Image ImageIO::loadPPM(std::string filename) {
             }
 
             // Convert values to the 0-255 range
+            // mapping [0,maxVal] -> [0,255]
             r = (r * 255 + maxValue / 2) / maxValue;
             g = (g * 255 + maxValue / 2) / maxValue;
             b = (b * 255 + maxValue / 2) / maxValue;
@@ -604,6 +610,8 @@ Image ImageIO::loadPPM(std::string filename) {
 
     return img;
 }
+
+// Display the image directly in the terminal using ANSI escape codes
 void ImageIO::display(const Image& img) {
 
     int width = img.getWidth();
@@ -647,10 +655,7 @@ void ImageIO::display(const Image& img) {
             int g = pixel[1];
             int b = pixel[2];
 
-            std::cout << "\033[48;2;"
-                      << r << ";"
-                      << g << ";"
-                      << b << "m  \033[0m";
+            std::cout << "\033[48;2;"<< r << ";"<< g << ";"<< b << "m  \033[0m";
         }
 
         std::cout << std::endl;
@@ -683,6 +688,47 @@ class GrayScaleFilter : public ImageFilter{
 public:
     void apply(Image&)override;
 };
+
+
+// remove the red channel from image 
+class RemoveRedChannel : public ImageFilter {
+public:
+    void apply(Image& img) {
+        for(int i=0;i<img.getHeight();i++) {
+            for(int j=0;j<img.getWidth();j++) {
+                std::vector<double> pixel = img.getPixel(i,j);
+                img.setPixel(i,j,0,pixel[1],pixel[2]);
+            }
+        }
+    }
+};
+
+// remove the green channel
+class RemoveGreenChannel : public ImageFilter {
+public:
+    void apply(Image& img) {
+        for(int i=0;i<img.getHeight();i++) {
+            for(int j=0;j<img.getWidth();j++) {
+                std::vector<double> pixel = img.getPixel(i,j);
+                img.setPixel(i,j,pixel[0],0,pixel[2]);
+            }
+        }
+    }
+};
+class RemoveBlueChannel : public ImageFilter {
+public:
+    void apply(Image& img) {
+        for(int i=0;i<img.getHeight();i++) {
+            for(int j=0;j<img.getWidth();j++) {
+                std::vector<double> pixel = img.getPixel(i,j);
+                img.setPixel(i,j,pixel[0],pixel[1],0);
+            }
+        }
+    }
+};
+
+
+// Apply the grayscale filter to the image
 void GrayScaleFilter::apply(Image& img) {
 
     int width = img.getWidth();
@@ -698,6 +744,7 @@ void GrayScaleFilter::apply(Image& img) {
             double g = pixel[1];
             double b = pixel[2];
 
+            // Calculate the grayscale intensity using the standard luminosity formula
             double gray = 0.299 * r + 0.587 * g + 0.114 * b;
 
             img.setPixel(i, j, gray, gray, gray);
@@ -721,6 +768,8 @@ public:
     BrightnessFilter(double b) : brightness(b) {}
     void apply(Image&) override;
 };
+
+// Apply the brightness filter to the image
 void BrightnessFilter::apply(Image& img) {
 
     int width = img.getWidth();
@@ -750,6 +799,7 @@ void BrightnessFilter::apply(Image& img) {
         }
     }
 }
+
 // invert filter:
 // intuitively its just the complement of channels
 // mathematically, c'(new channel) = 255 - c(old channel) 
@@ -757,6 +807,8 @@ class InvertFilter : public ImageFilter {
 public:
     void apply(Image&) override;
 };
+
+// Apply the invert filter to the image
 void InvertFilter::apply(Image& img) {
 
     int width = img.getWidth();
@@ -768,6 +820,7 @@ void InvertFilter::apply(Image& img) {
 
             std::vector<double> pixel = img.getPixel(i, j);
 
+            // Invert the channel by subtracting its value from 255
             double r = 255 - pixel[0];
             double g = 255 - pixel[1];
             double b = 255 - pixel[2];
@@ -797,8 +850,10 @@ public:
     void apply(Image&) override;
 };
 
+// Constructor for CropTransform
 CropTransform::CropTransform(int rs,int re,int cs,int ce) : rowStart(rs),rowStop(re),colStart(cs),colStop(ce) {}
 
+// Apply crop transformation to the image
 void CropTransform::apply(Image& img) {
     // validating coordinates
     if (rowStart < 0 || rowStop > img.getHeight() ||
@@ -827,9 +882,14 @@ public:
     FlipTransform(int);
     void apply(Image&) override;
 };
+
+// Constructor for FlipTransform
 FlipTransform::FlipTransform(int a) : axis(a) {
+    // Validate flip axis (0 for vertical, 1 for horizontal)
     if(axis != 0 && axis != 1)throw std::invalid_argument("Flip axis must be 0 or 1!");
 }
+
+// Apply flip transformation to the image
 void FlipTransform::apply(Image& img) {
     int width = img.getWidth();
     int height = img.getHeight();
@@ -839,12 +899,14 @@ void FlipTransform::apply(Image& img) {
     for(int i=0;i<height;i++){
         for(int j=0;j<width;j++){
             std::vector<double> pixel = img.getPixel(i,j);
+            // Remap coordinates based on the selected axis
             if(axis==0) flipped.setPixel(height-i-1,j,pixel[0],pixel[1],pixel[2]);
             else flipped.setPixel(i,width-j-1,pixel[0],pixel[1],pixel[2]);
         }
     }
     img = flipped;
 }
+
 // rotate an image by angles 90,180,270 only!!
 class RotateTransform : public ImageTransform {
 private:
@@ -853,9 +915,14 @@ public:
     RotateTransform(int);
     void apply(Image&) override;
 }; 
+
+// Constructor for RotateTransform
 RotateTransform::RotateTransform(int a) : angle(a) {
+    // Validate rotation angle
     if(angle != 90 && angle != 180 && angle != 270) throw std::invalid_argument("Rotation angle must be 90/180/270!");
 }
+
+// Apply rotation transformation to the image
 void RotateTransform::apply(Image& img) {
 
     int width = img.getWidth();
@@ -864,6 +931,7 @@ void RotateTransform::apply(Image& img) {
     int newWidth = width;
     int newHeight = height;
 
+    // Swap dimensions for 90 and 270 degree rotations
     if (angle == 90 || angle == 270) {
         newWidth = height;
         newHeight = width;
@@ -878,6 +946,7 @@ void RotateTransform::apply(Image& img) {
 
             int newRow, newCol;
 
+            // Determine new coordinates based on rotation angle
             if (angle == 90) {
                 newRow = j;
                 newCol = height - 1 - i;
@@ -891,14 +960,14 @@ void RotateTransform::apply(Image& img) {
                 newCol = i;
             }
 
-            rotated.setPixel(newRow, newCol,
-                             pixel[0], pixel[1], pixel[2]);
+            rotated.setPixel(newRow, newCol,pixel[0], pixel[1], pixel[2]);
         }
     }
 
     img = rotated;
 }
 
+// Class to perform analytical operations on an Image
 class ImageAnalyzer {
 public:
     static double getAverageRed(const Image& img);
@@ -912,18 +981,23 @@ public:
 
     static void showImageInfo(const Image& img);
 };
+
+// Calculate the average intensity of the red channel
 double ImageAnalyzer::getAverageRed(const Image& img) {
     return img.getRedChannel().mean();
 }
 
+// Calculate the average intensity of the green channel
 double ImageAnalyzer::getAverageGreen(const Image& img) {
     return img.getGreenChannel().mean();
 }
 
+// Calculate the average intensity of the blue channel
 double ImageAnalyzer::getAverageBlue(const Image& img) {
     return img.getBlueChannel().mean();
 }
 
+// Calculate the overall average brightness of the image
 double ImageAnalyzer::getAverageBrightness(const Image& img) {
 
     double total = 0;
@@ -933,10 +1007,8 @@ double ImageAnalyzer::getAverageBrightness(const Image& img) {
 
             std::vector<double> pixel = img.getPixel(i, j);
 
-            double brightness =
-                0.299 * pixel[0] +
-                0.587 * pixel[1] +
-                0.114 * pixel[2];
+            // weighted sum
+            double brightness =0.299 * pixel[0] +0.587 * pixel[1] +0.114 * pixel[2];
 
             total += brightness;
         }
@@ -947,6 +1019,7 @@ double ImageAnalyzer::getAverageBrightness(const Image& img) {
     return total / totalPixels;
 }
 
+// Find the minimum brightness value across all pixels
 double ImageAnalyzer::getMinBrightness(const Image& img) {
 
     double minimum = 255;
@@ -956,10 +1029,8 @@ double ImageAnalyzer::getMinBrightness(const Image& img) {
 
             std::vector<double> pixel = img.getPixel(i, j);
 
-            double brightness =
-                0.299 * pixel[0] +
-                0.587 * pixel[1] +
-                0.114 * pixel[2];
+            //weighted sum
+            double brightness =0.299 * pixel[0] +0.587 * pixel[1] +0.114 * pixel[2];
 
             if (brightness < minimum) {
                 minimum = brightness;
@@ -970,7 +1041,7 @@ double ImageAnalyzer::getMinBrightness(const Image& img) {
     return minimum;
 }
 
-
+// Find the maximum brightness value across all pixels
 double ImageAnalyzer::getMaxBrightness(const Image& img) {
 
     double maximum = 0;
@@ -980,10 +1051,7 @@ double ImageAnalyzer::getMaxBrightness(const Image& img) {
 
             std::vector<double> pixel = img.getPixel(i, j);
 
-            double brightness =
-                0.299 * pixel[0] +
-                0.587 * pixel[1] +
-                0.114 * pixel[2];
+            double brightness =0.299 * pixel[0] +0.587 * pixel[1] +0.114 * pixel[2];
 
             if (brightness > maximum) {
                 maximum = brightness;
@@ -994,6 +1062,7 @@ double ImageAnalyzer::getMaxBrightness(const Image& img) {
     return maximum;
 }
 
+// Print a formatted summary of image properties and statistics
 void ImageAnalyzer::showImageInfo(const Image& img) {
 
     std::cout << "\nIMAGE\n";
@@ -1026,18 +1095,20 @@ void ImageAnalyzer::showImageInfo(const Image& img) {
 }
 
 int main() {
-
+    std::string filename;
+    
+    // Get the image filename from the user
+    std::cout << "Enter PPM image filename: ";
+    std::cin >> filename;
     try {
 
-        Image img = ImageIO::loadPPM("output.ppm");
+        // Load the image from the specified file
+        Image img = ImageIO::loadPPM(filename);
 
-        std::cout << BOLD << ARRAY_BLUE
-                  << "\nWelcome to sudo Picasso!\n"
-                  << RESET;
+        std::cout << BOLD << ARRAY_BLUE << "\nWelcome to sudo Picasso!\n" << RESET;
 
-        std::cout << "Image loaded: output.ppm\n";
-        std::cout << "Resolution: " << img.getWidth()
-                  << " x " << img.getHeight() << "\n";
+        std::cout << "Image loaded!\n";
+        std::cout << "Resolution: " << img.getWidth() << " x " << img.getHeight() << "\n";
 
         ImageIO::display(img);
 
@@ -1047,10 +1118,11 @@ int main() {
         BrightnessFilter brightness(50);
         InvertFilter invert;
 
-        std::vector<ImageFilter*> filterList = {
-            &grayScale, &brightness, &invert
-        };
+        RemoveRedChannel rr;
+        RemoveGreenChannel rg;
+        RemoveBlueChannel rb;
 
+        std::vector<ImageFilter*> filterList = {&grayScale, &brightness, &invert, &rr,&rg,&rb};
 
         // Available transformations
         FlipTransform verticalFlip(0);
@@ -1060,14 +1132,12 @@ int main() {
         RotateTransform rotate180(180);
         RotateTransform rotate270(270);
 
-        std::vector<ImageTransform*> transformList = {
-            &verticalFlip, &horizontalFlip,
-            &rotate90, &rotate180, &rotate270
-        };
+        std::vector<ImageTransform*> transformList = {&verticalFlip, &horizontalFlip,&rotate90, &rotate180, &rotate270};
 
 
         int choice;
 
+        // Main interaction loop
         while (true) {
 
             std::cout << "\n\nImage editing options:\n\n";
@@ -1087,8 +1157,10 @@ int main() {
 
             std::cout << "  Other\n";
             std::cout << "  10. Image information\n";
-            std::cout << "  11. Display image\n";
             std::cout << "  0. Exit\n";
+            std::cout << "  11. Remove red channel\n";
+            std::cout << "  12. Remove green channel\n";
+            std::cout << "  13. Remove blue channel\n";
 
             std::cout << "\nChoice: ";
             std::cin >> choice;
@@ -1100,6 +1172,7 @@ int main() {
             }
 
 
+            // Apply selected filter
             if (choice >= 1 && choice <= 3) {
 
                 filterList[choice - 1]->apply(img);
@@ -1108,6 +1181,7 @@ int main() {
                 ImageIO::display(img);
             }
 
+            // Apply selected transformation (excluding crop)
             else if (choice >= 4 && choice <= 8) {
 
                 transformList[choice - 4]->apply(img);
@@ -1116,6 +1190,7 @@ int main() {
                 ImageIO::display(img);
             }
 
+            // Handle manual crop transformation
             else if (choice == 9) {
 
                 int rowStart, rowEnd, colStart, colEnd;
@@ -1141,21 +1216,28 @@ int main() {
                 ImageIO::display(img);
             }
 
+            // Display image analysis info
             else if (choice == 10) {
 
                 ImageAnalyzer::showImageInfo(img);
             }
-
-            else if (choice == 11) {
-
+            else if(choice==11){
+                filterList[3]->apply(img);
                 ImageIO::display(img);
             }
-
+            else if(choice==12){
+                filterList[4]->apply(img);
+                ImageIO::display(img);
+            }
+            else if(choice==13){
+                filterList[5]->apply(img);
+                ImageIO::display(img);
+            }
+            
+            // Handle invalid inputs
             else {
 
-                std::cout << ERROR_COLOR
-                          << "Invalid choice. Try again.\n"
-                          << RESET;
+                std::cout << ERROR_COLOR << "Invalid choice. Try again.\n" << RESET;
             }
         }
 
@@ -1163,10 +1245,7 @@ int main() {
 
     catch (const std::exception& e) {
 
-        std::cout << ERROR_COLOR
-                  << "Error: " << e.what() << "\n"
-                  << RESET;
-
+        std::cout << ERROR_COLOR << "Error: " << e.what() << "\n" << RESET;
         return 1;
     }
 
